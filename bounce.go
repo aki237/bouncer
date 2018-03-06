@@ -71,7 +71,7 @@ func (b *Bouncer) Serve(cert string, priv string) {
 				fatal(err.Error())
 			}
 		}()
-		err := http.ListenAndServeTLS(":443", cert, priv, http.HandlerFunc(b.bounce))
+		err := http.ListenAndServeTLS(":443", cert, priv, compressionHandler(http.HandlerFunc(b.bounce)))
 		if err != nil {
 			fatal(err.Error())
 		}
