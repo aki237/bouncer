@@ -91,10 +91,11 @@ func (b *Bouncer) bounce(w http.ResponseWriter, r *http.Request) {
 		local = "localhost" + local
 	}
 
-	fmt.Println("http://" + local + r.URL.EscapedPath())
+	fmt.Println("http://" + local + r.URL.String())
 
 	c := &http.Client{}
-	req, err := http.NewRequest(r.Method, "http://"+local+r.URL.EscapedPath(), r.Body)
+	fmt.Println(r.URL.String())
+	req, err := http.NewRequest(r.Method, "http://"+local+r.URL.String(), r.Body)
 	if err != nil {
 		warn(err.Error())
 		w.WriteHeader(502)
@@ -115,12 +116,14 @@ func (b *Bouncer) bounce(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for k, s := range resp.Header {
-		w.Header().Set(k, strings.Join(s, ""))
+		w.Header().Set(k, strings.Join(s, ", "))
 	}
-
-	w.WriteHeader(resp.StatusCode)
+	w.Header().Del("Content-Length")
 
 	io.Copy(w, resp.Body)
 
-	resp.Body.Close()
+	w.WriteHeader(resp.StatusCode)
+
+	defer resp.Body.Close()
+
 }
