@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
+
+	"golang.org/x/crypto/acme/autocert"
 )
 
 type Bouncer struct {
@@ -80,6 +84,36 @@ func (b *Bouncer) Serve(cert string, priv string) {
 	}
 }
 
+func (b *Bouncer) ServeAuto() {
+	log("Auto mode enabled")
+	go func() {
+		if err := http.ListenAndServe(":80", http.HandlerFunc(redirectTLS)); err != nil {
+			fatal(err.Error())
+		}
+	}()
+
+	m := &autocert.Manager{
+		Cache: autocert.DirCache("secret-dir"),
+		Prompt: func(tosURL string) bool {
+			fmt.Println("requesting : ", tosURL)
+			return true
+		},
+		HostPolicy: func(ctx context.Context, host string) error {
+			_, ok := b.sites[host]
+			if !ok {
+				return errors.New("Site '" + host + "' not configured")
+			}
+			return nil
+		},
+	}
+	s := &http.Server{
+		Addr:      ":https",
+		TLSConfig: m.TLSConfig(),
+		Handler:   compressionHandler(http.HandlerFunc(b.bounce)),
+	}
+	s.ListenAndServeTLS("", "")
+}
+
 func (b *Bouncer) bounce(w http.ResponseWriter, r *http.Request) {
 	local, ok := b.sites[r.Host]
 	if !ok {
@@ -106,6 +140,8 @@ func (b *Bouncer) bounce(w http.ResponseWriter, r *http.Request) {
 	for k, s := range r.Header {
 		req.Header.Set(k, strings.Join(s, ""))
 	}
+
+	req.Host = r.Host
 
 	resp, err := c.Do(req)
 	if err != nil {

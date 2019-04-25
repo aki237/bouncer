@@ -45,7 +45,7 @@ func main() {
 	configFile := flag.String("c", "/etc/bouncer.conf", "Configuration file to use")
 	certKey := flag.String("cert", "", "Full chain certificate to use for TLS connections")
 	privKey := flag.String("key", "", "Private Key to use for TLS connections")
-
+	auto := flag.Bool("autocert", false, "Get TLS certificates from Lets Encrypt automatically")
 	flag.Parse()
 
 	if !FileExists(*configFile) {
@@ -59,5 +59,10 @@ func main() {
 	}
 
 	fmt.Println(b)
-	b.Serve(*certKey, *privKey)
+	if !*auto {
+		b.Serve(*certKey, *privKey)
+		return
+	}
+
+	b.ServeAuto()
 }
