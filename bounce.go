@@ -1,15 +1,13 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
 
-	"golang.org/x/crypto/acme/autocert"
+	"github.com/caddyserver/certmagic"
 )
 
 type Bouncer struct {
@@ -92,23 +90,21 @@ func (b *Bouncer) ServeAuto() {
 		}
 	}()
 
-	m := &autocert.Manager{
-		Cache: autocert.DirCache("secret-dir"),
-		Prompt: func(tosURL string) bool {
-			fmt.Println("requesting : ", tosURL)
-			return true
-		},
-		HostPolicy: func(ctx context.Context, host string) error {
-			_, ok := b.sites[host]
-			if !ok {
-				return errors.New("Site '" + host + "' not configured")
-			}
-			return nil
-		},
+	// read and agree to your CA's legal documents
+	certmagic.DefaultACME.Agreed = true
+
+	hosts := make([]string, 0, len(b.sites))
+	for k := range b.sites {
+		hosts = append(hosts, k)
 	}
+	tlsConfig, err := certmagic.TLS(hosts)
+	if err != nil {
+		fatal(err.Error())
+	}
+
 	s := &http.Server{
 		Addr:      ":https",
-		TLSConfig: m.TLSConfig(),
+		TLSConfig: tlsConfig,
 		Handler:   compressionHandler(http.HandlerFunc(b.bounce)),
 	}
 	s.ListenAndServeTLS("", "")
